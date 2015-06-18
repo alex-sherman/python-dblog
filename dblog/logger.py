@@ -1,15 +1,61 @@
-import jrpc
+import jrpc, json
 import inspect
 import datetime
 import influxdb
+import sqlite3
+import threading, time
 
 LOG_LEVELS = ["info", "debug", "warning", "error"]
 
+class LoggingOffload(threading.Thread):
+    def __init__(self, logger, cache_path, interval, db_credentials = ('influxdb.wirover.com', 8086, 'root', 'root', 'example')):
+        threading.Thread.__init__(self)
+        self.logger = logger
+        self.cache_path = cache_path
+        self.interval = interval
+        self.running = True
+        self.influxdb = influxdb.InfluxDBClient(*db_credentials)
+
+    def run(self):
+        self.logger.info("Logging service offloader started")
+        conn = sqlite3.connect(self.cache_path)
+        c = conn.cursor()
+        while self.running:
+            c.execute("select ROWID, point from logcache")
+            rows = c.fetchall()
+            if(len(rows) > 0):
+                max_row_id = max([row[0] for row in rows])
+                points = [json.loads(row[1]) for row in rows]
+                try:
+                    self.influxdb.write_points(points)
+                    c.execute("delete from logcache where ROWID <= ?", [max_row_id])
+                    conn.commit()
+                    self.logger.info("Wrote "+str(len(points))+" rows to influxdb")
+                except Exception as e:
+                    self.logger.error(e)
+            # A more responsive sleep, this terminates within 100 ms when the service
+            # unsets running
+            for i in range(self.interval * 10):
+                if not self.running: return
+                time.sleep(.1)
+
 class LoggingService(jrpc.service.SocketObject):
-    def __init__(self, port = 9999, log_level = "warning"):
+    def __init__(self, cache_path, port = 9999, log_level = "warning", offload_interval = 10):
         self.log_level = LOG_LEVELS.index(log_level)
         jrpc.service.SocketObject.__init__(self, port, debug = False)
-        self.influxdb = influxdb.InfluxDBClient('influxdb.wirover.com', 8086, 'root', 'root', 'example')
+        self.cache_path = cache_path
+        self.cache_conn = sqlite3.connect(cache_path, check_same_thread=False)
+        self.cache_c = self.cache_conn.cursor()
+        self.cache_c.execute("CREATE TABLE if not exists logcache (point text)")
+        self.logger = Logger(self.console_log)
+        self.offload = LoggingOffload(self.logger, cache_path, offload_interval)
+        self.offload.start()
+
+    def console_log(self, name, value = None, fields = None, log_level = "info", tags = None):
+        if LOG_LEVELS.index(log_level) < self.log_level:
+            return
+        filename = fields['filename'].split("/")[-1].split("\\")[-1]
+        print str(datetime.datetime.now()) + " " + log_level + " " + filename + ":" + str(fields['line']) + " - " + fields['value']
 
     @jrpc.service.method
     def log(self, name, value = None, fields = None, log_level = "info", tags = None):
@@ -28,12 +74,24 @@ class LoggingService(jrpc.service.SocketObject):
         tags["log_level"] = log_level
 
         point = {"measurement": name, "fields": fields, "tags": tags, "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
-        print point
-        self.influxdb.write_points([point])
+        self.cache_c.execute("INSERT into logcache VALUES (?)", [json.dumps(point)])
+        self.cache_conn.commit()
 
-class LoggingClient(jrpc.service.SocketProxy):
-    def __init__(self, port = 9999, timeout = 5):
-        jrpc.service.SocketProxy.__init__(self, port, timeout = timeout)
+    def close(self):
+        jrpc.service.SocketObject.close(self)
+        self.logger.warning("Logging service exiting")
+        if self.offload != None:
+            self.offload.running = False
+
+class Logger:
+    def __init__(self, log_callback, tags = None):
+        self._log = log_callback
+        self.tags = tags
+
+    def log(self, name, value = None, fields = None, log_level = "info", tags = None):
+        if tags == None: tags = {}
+        if self.tags != None: tags.update(self.tags)
+        self._log(name, value, fields, log_level, tags)
 
     def _msg(self, msg, level, back):
         f = inspect.currentframe()
