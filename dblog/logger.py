@@ -14,7 +14,7 @@ class LoggingOffload(threading.Thread):
         self.cache_path = cache_path
         self.interval = interval
         self.running = True
-        self.influxdb = influxdb.InfluxDBClient(*db_credentials)
+        self.influxdb = influxdb.InfluxDBClient(*db_credentials, timeout = 10)
 
     def run(self):
         self.logger.info("Logging service offloader started")
@@ -61,7 +61,8 @@ class LoggingService(jrpc.service.SocketObject):
     def log(self, name, value = None, fields = None, log_level = "info", tags = None):
         if LOG_LEVELS.index(log_level) < self.log_level:
             return
-
+        if name == "log":
+            self.console_log(name, value, fields, log_level, tags)
         if fields == None:
             if value == None:
                 raise ValueError("Value and fields cannot be None")
