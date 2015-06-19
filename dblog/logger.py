@@ -5,7 +5,7 @@ import influxdb
 import sqlite3
 import threading, time
 
-LOG_LEVELS = ["info", "debug", "warning", "error"]
+LOG_LEVELS = ["debug", "info", "warning", "error"]
 
 class LoggingOffload(threading.Thread):
     def __init__(self, logger, cache_path, interval, db_credentials = ('influxdb.wirover.com', 8086, 'root', 'root', 'example')):
