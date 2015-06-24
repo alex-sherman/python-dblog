@@ -30,9 +30,9 @@ class LoggingOffload(threading.Thread):
                     self.influxdb.write_points(points)
                     c.execute("delete from logcache where ROWID <= ?", [max_row_id])
                     conn.commit()
-                    self.logger.info("Wrote "+str(len(points))+" rows to influxdb")
+                    self.logger.debug("Wrote "+str(len(points))+" rows to influxdb")
                 except Exception as e:
-                    self.logger.error(e)
+                    self.logger.debug(e)
             # A more responsive sleep, this terminates within 100 ms when the service
             # unsets running
             for i in range(self.interval * 10):
@@ -47,7 +47,7 @@ class LoggingService(jrpc.service.SocketObject):
         self.cache_conn = sqlite3.connect(cache_path, check_same_thread=False)
         self.cache_c = self.cache_conn.cursor()
         self.cache_c.execute("CREATE TABLE if not exists logcache (point text)")
-        self.logger = Logger(self.console_log)
+        self.logger = Logger(self.log)
         self.offload = LoggingOffload(self.logger, cache_path, offload_interval)
         self.offload.start()
 
@@ -55,14 +55,12 @@ class LoggingService(jrpc.service.SocketObject):
         if LOG_LEVELS.index(log_level) < self.log_level:
             return
         filename = fields['filename'].split("/")[-1].split("\\")[-1]
-        print str(datetime.datetime.now()) + " " + log_level + " " + filename + ":" + str(fields['line']) + " - " + fields['value']
+        return str(datetime.datetime.now()) + " " + log_level + " " + filename + ":" + str(fields['line']) + " - " + fields['value']
 
     @jrpc.service.method
     def log(self, name, value = None, fields = None, log_level = "info", tags = None):
         if LOG_LEVELS.index(log_level) < self.log_level:
             return
-        if name == "log":
-            self.console_log(name, value, fields, log_level, tags)
         if fields == None:
             if value == None:
                 raise ValueError("Value and fields cannot be None")
@@ -77,6 +75,9 @@ class LoggingService(jrpc.service.SocketObject):
         point = {"measurement": name, "fields": fields, "tags": tags, "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
         self.cache_c.execute("INSERT into logcache VALUES (?)", [json.dumps(point)])
         self.cache_conn.commit()
+        if name == "log":
+            return self.console_log(name, value, fields, log_level, tags)
+        return None
 
     def close(self):
         jrpc.service.SocketObject.close(self)
@@ -90,9 +91,13 @@ class Logger:
         self.tags = tags
 
     def log(self, name, value = None, fields = None, log_level = "info", tags = None):
+        if self._log == None: return
         if tags == None: tags = {}
         if self.tags != None: tags.update(self.tags)
-        self._log(name, value, fields, log_level, tags)
+        try:
+            return self._log(name, value, fields, log_level, tags)
+        except Exception as e:
+            return str(e)
 
     def _msg(self, msg, level, back):
         f = inspect.currentframe()
@@ -101,7 +106,9 @@ class Logger:
         mod = f.f_code.co_filename
         lineno = f.f_lineno
         date = datetime.datetime.now()
-        self.log("log", fields = {"value": str(msg), "filename": mod, "line": lineno}, log_level = level)
+        output = self.log("log", fields = {"value": str(msg), "filename": mod, "line": lineno}, log_level = level)
+        if output != None:
+            print output
 
     def info(self, msg, back = 2):
         self._msg(msg, "info", back)
