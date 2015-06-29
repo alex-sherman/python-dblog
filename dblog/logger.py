@@ -99,22 +99,22 @@ class Logger:
         except Exception as e:
             return str(e)
 
-    def _msg(self, msg, level, back):
+    def _msg(self, msg, level, back, tags):
         f = inspect.currentframe()
         for i in range(back):
             f = f.f_back
         mod = f.f_code.co_filename
         lineno = f.f_lineno
         date = datetime.datetime.now()
-        output = self.log("log", fields = {"value": str(msg), "filename": mod, "line": lineno}, log_level = level)
+        output = self.log("log", fields = {"value": str(msg), "filename": mod, "line": lineno}, log_level = level, tags = tags)
         if output != None:
             print output
 
-    def info(self, msg, back = 2):
-        self._msg(msg, "info", back)
-    def debug(self, msg, back = 2):
-        self._msg(msg, "debug", back)
-    def warning(self, msg, back = 2):
-        self._msg(msg, "warning", back)
-    def error(self, msg, back = 2):
-        self._msg(msg, "error", back)
+    def info(self, msg, back = 2, tags = None):
+        self._msg(msg, "info", back, tags)
+    def debug(self, msg, back = 2, tags = None):
+        self._msg(msg, "debug", back, tags)
+    def warning(self, msg, back = 2, tags = None):
+        self._msg(msg, "warning", back, tags)
+    def error(self, msg, back = 2, tags = None):
+        self._msg(msg, "error", back, tags)
