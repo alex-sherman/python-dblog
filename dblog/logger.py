@@ -30,7 +30,6 @@ class LoggingOffload(threading.Thread):
                     self.influxdb.write_points(points)
                     c.execute("delete from logcache where ROWID <= ?", [max_row_id])
                     conn.commit()
-                    self.logger.debug("Wrote "+str(len(points))+" rows to influxdb")
                 except Exception as e:
                     self.logger.debug(e)
             # A more responsive sleep, this terminates within 100 ms when the service
@@ -41,8 +40,8 @@ class LoggingOffload(threading.Thread):
 
 class LoggingService(jrpc.service.SocketObject):
     def __init__(self, cache_path, port = 9999, log_level = "warning", offload_interval = 10):
-        self.log_level = LOG_LEVELS.index(log_level)
         jrpc.service.SocketObject.__init__(self, port, debug = False)
+        self.set_log_level(log_level)
         self.cache_path = cache_path
         self.cache_conn = sqlite3.connect(cache_path, check_same_thread=False)
         self.cache_c = self.cache_conn.cursor()
@@ -56,6 +55,10 @@ class LoggingService(jrpc.service.SocketObject):
             return
         filename = fields['filename'].split("/")[-1].split("\\")[-1]
         return str(datetime.datetime.now()) + " " + log_level + " " + filename + ":" + str(fields['line']) + " - " + fields['value']
+
+    @jrpc.service.method
+    def set_log_level(self, log_level):
+        self.log_level = LOG_LEVELS.index(log_level)
 
     @jrpc.service.method
     def log(self, name, value = None, fields = None, log_level = "info", tags = None):
