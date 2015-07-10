@@ -1,37 +1,40 @@
 import jrpc, json
 import inspect
 import datetime
-import influxdb
+import requests
 import sqlite3
 import threading, time
 
 LOG_LEVELS = ["debug", "info", "warning", "error"]
 
 class LoggingOffload(threading.Thread):
-    def __init__(self, logger, cache_path, interval, db_credentials = ('influxdb.wirover.com', 8086, 'root', 'root', 'example')):
+    def __init__(self, logger, cache_path, interval, db_uri = 'http://localhost:8080/log'):
         threading.Thread.__init__(self)
         self.logger = logger
         self.cache_path = cache_path
         self.interval = interval
         self.running = True
-        self.influxdb = influxdb.InfluxDBClient(*db_credentials, timeout = 10)
+        self.db_uri = db_uri
 
     def run(self):
         self.logger.info("Logging service offloader started")
         conn = sqlite3.connect(self.cache_path)
         c = conn.cursor()
         while self.running:
-            c.execute("select ROWID, point from logcache")
+            c.execute("select ROWID, point from logcache limit 10")
             rows = c.fetchall()
             if(len(rows) > 0):
                 max_row_id = max([row[0] for row in rows])
                 points = [json.loads(row[1]) for row in rows]
                 try:
-                    self.influxdb.write_points(points)
+                    r = requests.post(self.db_uri + '/insert', data = {"points": json.dumps(points)})
                     c.execute("delete from logcache where ROWID <= ?", [max_row_id])
                     conn.commit()
+                    #If an error occurs at the server still delete the points, but log the occurence
+                    if r.status_code != 200:
+                        raise Exception("A server error occured({0}): {1}".format(r.status_code, r.text))
                 except Exception as e:
-                    self.logger.debug(e)
+                    self.logger.error(e)
             # A more responsive sleep, this terminates within 100 ms when the service
             # unsets running
             for i in range(self.interval * 10):
@@ -75,7 +78,7 @@ class LoggingService(jrpc.service.SocketObject):
             tags = {}
         tags["log_level"] = log_level
 
-        point = {"measurement": name, "fields": fields, "tags": tags, "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
+        point = {"measurement": name, "fields": fields, "tags": tags, "time": float(time.time())}
         self.cache_c.execute("INSERT into logcache VALUES (?)", [json.dumps(point)])
         self.cache_conn.commit()
         if name == "log":

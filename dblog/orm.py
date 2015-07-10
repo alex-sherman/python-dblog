@@ -1,4 +1,4 @@
-import json
+import json, datetime
 from sqlalchemy import Column, ForeignKeyConstraint, Index, PrimaryKeyConstraint, text
 from sqlalchemy.dialects.mysql import *
 from sqlalchemy.ext.declarative import declarative_base
@@ -30,8 +30,9 @@ class log_value(Base):
     __table_args__ = {'schema': SCHEMA}
 
     id = Column(INTEGER, primary_key=True, nullable = False)
+    measurement = Column(VARCHAR(64), nullable = False)
     fields = Column(json_type, nullable = False)
-    time = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP()"), nullable = False)
+    time = Column(DOUBLE, nullable = False)
     _tags = relationship("log_tag", backref="log_value")
 
     @property
@@ -44,8 +45,27 @@ class log_value(Base):
             col_initializer = lambda name, value: log_tag(tag_key = name, tag_value = value))
         return self._tag_dict
 
+    @staticmethod
+    def from_obj(obj):
+        measurement = obj["measurement"]
+        fields = obj["fields"]
+        tags = obj["tags"]
+        value = log_value(measurement = measurement, fields = fields)
+        if "time" in obj:
+            value.time = obj["time"]
+        for tag_key in tags:
+            value.tags[tag_key] = tags[tag_key]
+        return value
+
+    def line(self):
+        import datetime
+        time = datetime.datetime.fromtimestamp(
+            int(self.time)
+        ).strftime('%Y-%m-%d %H:%M:%S')
+        return time + ": " + str(self.fields)
+
     def __repr__(self):
-        return "<log_value " + str(self.fields) + " " + str(self.tags) + str(self.time) + " >"
+        return "<log_value " + str(self.fields) + " " + str(self.tags) + " " + str(self.time) + " >"
 
 Index('time_idx', log_value.time)
 

@@ -12,6 +12,22 @@ class LogBlueprint(Blueprint):
             raise KeyError("Missing argument: db")
         super(LogBlueprint, self).__init__(*args, **kwargs)
 
-        @self.route('/')
+        @self.route('')
         def index():
-            return str(self._db.session.query(logdb.log_value).all())
+            query = self._db.session.query(logdb.log_value).join(logdb.log_tag)
+            for key, value in request.args.iteritems():
+                query = query.filter(logdb.log_tag.tag_key == key)
+                query = query.filter(logdb.log_tag.tag_value == value)
+
+            output = ""
+            for row in query.all():
+                output += row.line() + "<BR>"
+            return output
+
+        @self.route('/insert', methods=['POST'])
+        def insert():
+            points = request.form["points"]
+            db_points = [logdb.log_value.from_obj(obj) for obj in json.loads(points)]
+            self._db.session.add_all(db_points)
+            self._db.session.commit()
+            return ""
