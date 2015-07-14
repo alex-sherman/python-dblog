@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
   name = "dblog",
-  version = "0.1",
+  version = "0.2",
   description = "A Python logging library that supports databases",
   packages = ["dblog"],
   author='Alex Sherman',

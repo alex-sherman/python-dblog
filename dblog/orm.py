@@ -68,6 +68,7 @@ class log_value(Base):
         return "<log_value " + str(self.fields) + " " + str(self.tags) + " " + str(self.time) + " >"
 
 Index('time_idx', log_value.time)
+Index('measurement_idx', log_value.measurement)
 
 class log_tag(Base):
     __tablename__ = 'log_tags'

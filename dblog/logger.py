@@ -8,7 +8,7 @@ import threading, time
 LOG_LEVELS = ["debug", "info", "warning", "error"]
 
 class LoggingOffload(threading.Thread):
-    def __init__(self, logger, cache_path, interval, db_uri = 'http://localhost:8080/log'):
+    def __init__(self, logger, cache_path, interval, db_uri):
         threading.Thread.__init__(self)
         self.logger = logger
         self.cache_path = cache_path
@@ -42,7 +42,7 @@ class LoggingOffload(threading.Thread):
                 time.sleep(.1)
 
 class LoggingService(jrpc.service.SocketObject):
-    def __init__(self, cache_path, port = 9999, log_level = "warning", offload_interval = 10):
+    def __init__(self, cache_path, db_uri = None, port = 9999, log_level = "warning", offload_interval = 10):
         jrpc.service.SocketObject.__init__(self, port, debug = False)
         self.set_log_level(log_level)
         self.cache_path = cache_path
@@ -50,8 +50,9 @@ class LoggingService(jrpc.service.SocketObject):
         self.cache_c = self.cache_conn.cursor()
         self.cache_c.execute("CREATE TABLE if not exists logcache (point text)")
         self.logger = Logger(self.log)
-        self.offload = LoggingOffload(self.logger, cache_path, offload_interval)
-        self.offload.start()
+        if db_uri != None:
+            self.offload = LoggingOffload(self.logger, cache_path, offload_interval, db_uri)
+            self.offload.start()
 
     def console_log(self, name, value = None, fields = None, log_level = "info", tags = None):
         if LOG_LEVELS.index(log_level) < self.log_level:
@@ -88,7 +89,7 @@ class LoggingService(jrpc.service.SocketObject):
     def close(self):
         jrpc.service.SocketObject.close(self)
         self.logger.warning("Logging service exiting")
-        if self.offload != None:
+        if hasattr(self, 'offload') and self.offload != None:
             self.offload.running = False
 
 class Logger:
