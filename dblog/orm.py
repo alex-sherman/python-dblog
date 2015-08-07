@@ -57,13 +57,6 @@ class log_value(Base):
             value.tags[tag_key] = tags[tag_key]
         return value
 
-    def line(self):
-        import datetime
-        time = datetime.datetime.fromtimestamp(
-            int(self.time)
-        ).strftime('%Y-%m-%d %H:%M:%S')
-        return time + ": " + str(self.fields)
-
     def __repr__(self):
         return "<log_value " + str(self.fields) + " " + str(self.tags) + " " + str(self.time) + " >"
 
