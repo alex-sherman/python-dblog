@@ -14,7 +14,7 @@ class LogBlueprint(Blueprint):
 
         @self.route('')
         def index():
-            query = self._db.session.query(logdb.log_value)
+            query = self._db.session.query(logdb.log_value).filter(logdb.log_value.measurement == "log")
             query = query.order_by(logdb.log_value.time.desc()).limit(100)
             query = query.from_self().join(logdb.log_tag)
             for key, value in request.args.iteritems():
@@ -39,4 +39,5 @@ class LogBlueprint(Blueprint):
             time = datetime.datetime.fromtimestamp(
                 int(row.time)
             ).strftime('%Y-%m-%d %H:%M:%S')
-            return time + ": <a href='#' title='"+json.dumps(row.tags.dict())+"'>Tags</a> " + json.dumps(row.fields)
+            return time + ": <a href='#' title='"+json.dumps(row.tags.dict())+"'>Tags</a> <b>Line: " +\
+                str(row.fields["line"]) + "</b> <i>" + str(row.fields["filename"]) + "</i> " + str(row.fields["value"])
