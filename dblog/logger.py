@@ -21,7 +21,7 @@ class LoggingOffload(threading.Thread):
         conn = sqlite3.connect(self.cache_path)
         c = conn.cursor()
         while self.running:
-            c.execute("select ROWID, point from logcache limit 10")
+            c.execute("select ROWID, point from logcache limit 500")
             rows = c.fetchall()
             if(len(rows) > 0):
                 max_row_id = max([row[0] for row in rows])
@@ -42,7 +42,7 @@ class LoggingOffload(threading.Thread):
                 time.sleep(.1)
 
 class LoggingService(jrpc.service.SocketObject):
-    def __init__(self, cache_path, db_uri = None, port = 9999, log_level = "warning", offload_interval = 10):
+    def __init__(self, cache_path, db_uri = None, port = 9999, log_level = "warning", offload_interval = 5):
         jrpc.service.SocketObject.__init__(self, port, debug = False)
         self.set_log_level(log_level)
         self.cache_path = cache_path
