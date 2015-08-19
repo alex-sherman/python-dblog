@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
   name = "dblog",
-  version = "0.3.3",
+  version = "0.3.4",
   description = "A Python logging library that supports databases",
   packages = ["dblog"],
   author='Alex Sherman',
