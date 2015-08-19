@@ -6,6 +6,7 @@ from sqlalchemy.types import TypeDecorator
 from sqlalchemy import types
 from sqlalchemy.orm import relationship, backref
 from fakedict import CollectionDict
+from sqlalchemy.schema import ForeignKey
 
 Base = declarative_base()
 SCHEMA = 'log'
@@ -30,9 +31,9 @@ class log_value(Base):
     __table_args__ = {'schema': SCHEMA}
 
     id = Column(INTEGER, primary_key=True, nullable = False)
-    measurement = Column(VARCHAR(64), nullable = False)
+    measurement = Column(VARCHAR(64), nullable = False, index=True)
     fields = Column(json_type, nullable = False)
-    time = Column(DOUBLE, nullable = False)
+    time = Column(DOUBLE, nullable = False, index=True)
     _tags = relationship("log_tag", backref="log_value")
 
     @property
@@ -60,14 +61,11 @@ class log_value(Base):
     def __repr__(self):
         return "<log_value " + str(self.fields) + " " + str(self.tags) + " " + str(self.time) + " >"
 
-Index('time_idx', log_value.time)
-Index('measurement_idx', log_value.measurement)
-
 class log_tag(Base):
     __tablename__ = 'log_tags'
     __table_args__ = {'schema': SCHEMA}
 
-    log_id = Column(INTEGER, primary_key = True, nullable = False)
+    log_id = Column(INTEGER, ForeignKey(log_value.id, onupdate="CASCADE", ondelete="CASCADE"), primary_key = True, nullable = False)
     tag_key = Column(VARCHAR(64), primary_key = True, nullable = False)
     tag_value = Column(VARCHAR(64), nullable = False)
 
@@ -75,7 +73,3 @@ class log_tag(Base):
         return "<log_tag " + str(self.tag_key) + ": " + str(self.tag_value) + ">"
 
 Index('tag_key_val', log_tag.tag_key, log_tag.tag_value)
-ForeignKeyConstraint(
-        [log_tag.log_id], [log_value.id],
-        use_alter=True, name='fk_element_parent_node_id'
-    )
