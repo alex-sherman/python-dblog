@@ -41,7 +41,7 @@ class LoggingService(jrpc.service.SocketObject):
         tags["log_level"] = log_level
 
         point = {"measurement": name, "fields": fields, "tags": tags, "time": int(time.time())}
-        self.cache.add_request(json.dumps(point))
+        self.cache.add_request(point)
         if name == "log":
             return self.console_log(name, value, fields, log_level, tags)
         return None

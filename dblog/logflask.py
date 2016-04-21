@@ -27,7 +27,7 @@ def record(state):
 @mod.route('')
 def index():
     session = current_app.config["logger.db"]()
-    session.query(logdb.log_value)
+    query = session.query(logdb.log_value)
 
     for key, value in request.args.iteritems():
         tag_alias = aliased(logdb.log_tag)

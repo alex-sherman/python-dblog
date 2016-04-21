@@ -8,5 +8,5 @@ setup(
   packages = ["dblog"],
   author='Alex Sherman',
   author_email='asherman1024@gmail.com',
-  install_requires=['flask', 'python-jrpc==1.1.5', 'postcache>=0.1.3', 'fakedict'],
+  install_requires=['flask', 'python-jrpc==1.1.5', 'postcache==0.2.0', 'fakedict'],
   url='https://github.com/alex-sherman/python-dblog')
